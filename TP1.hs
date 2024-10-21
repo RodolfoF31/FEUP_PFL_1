@@ -1,6 +1,7 @@
 import qualified Data.List
 import qualified Data.Array
 import qualified Data.Bits
+import Data.List (intercalate)
 
 -- PFL 2024/2025 Practical assignment 1
 
@@ -14,23 +15,44 @@ type RoadMap = [(City,City,Distance)]
 
 --  returns all the cities in the graph.
 
+removeDuplicates :: Eq a => [a] -> [a]
+removeDuplicates [] = []
+removeDuplicates (x:xs) = x : removeDuplicates (filter (/= x) xs)
+
 cities :: RoadMap -> [City]
-cities = undefined 
+cities x = removeDuplicates (concat [[c1, c2] | (c1, c2, _) <- x])
+
+printCities :: RoadMap -> IO ()
+printCities x = putStrLn ("The cities in the graph are: " ++ intercalate ", " (cities x))
 
 -- returns a boolean indicating whether two cities are linked directly.
 
 areAdjacent :: RoadMap -> City -> City -> Bool
-areAdjacent = undefined
+areAdjacent x city1 city2 = any (\(c1, c2, _) -> (c1 == city1 && c2 == city2) || (c1 == city2 && c2 == city1)) x
+
+printAreAdjacent :: RoadMap -> City -> City -> IO ()
+printAreAdjacent x city1 city2 = 
+    if areAdjacent x city1 city2 
+    then putStrLn ("City " ++ city1 ++ " and " ++ "City " ++ city2 ++ " are adjacent.")
+    else putStrLn ("City " ++ city1 ++ " and " ++ "City " ++ city2 ++ " are not adjacent.")
 
 -- returns a Just value with the distance between two cities connected directly, given two city names, and Nothing otherwise.
 
 distance :: RoadMap -> City -> City -> Maybe Distance
-distance = undefined
+distance x city1 city2 = 
+    if areAdjacent x city1 city2
+    then Just (head [d | (c1, c2, d) <- x, (c1 == city1 && c2 == city2) || (c1 == city2 && c2 == city1)])
+    else Nothing
 
 -- returns the cities adjacent to a particular city (i.e. cities with a direct edge between them) and the respective distances to them.
 
 adjacent :: RoadMap -> City -> [(City,Distance)]
-adjacent = undefined
+adjacent x city = [(c, d) | c <- cities x, areAdjacent x city c, Just d <- [distance x city c]]
+
+printAdjacentCities :: RoadMap -> City -> IO ()
+printAdjacentCities x city = do
+    putStrLn ("The Cities adjacent to " ++ city ++ " are:\n")
+    putStrLn ( unlines ["City " ++ c ++ " with distance " ++ show d  | (c, d) <- adjacent x city])
 
 -- returns the sum of all individual distances in a path between two cities in a Just value, if all the consecutive pairs of cities are directly connected by roads. 
 -- Otherwise, it returns a Nothing.
@@ -61,9 +83,6 @@ shortestPath = undefined
 
 travelSales :: RoadMap -> Path
 travelSales = undefined
-
-tspBruteForce :: RoadMap -> Path
-tspBruteForce = undefined -- only for groups of 3 people; groups of 2 people: do not edit this function
 
 -- Some graphs to test your work
 gTest1 :: RoadMap
