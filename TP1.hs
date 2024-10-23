@@ -67,8 +67,27 @@ rome = undefined
 
 -- returns a boolean indicating whether all the cities in the graph are connected in the roadmap (i.e., if every city is reachable from every other city)
 
+dfs :: RoadMap -> City -> [City]
+dfs x start = dfs' [start] []
+  where
+    dfs' [] visited = visited
+    dfs' (c:cs) visited
+      | c `elem` visited = dfs' cs visited
+      | otherwise = dfs' (adjacentCities ++ cs) (c : visited)
+      where
+        adjacentCities = [c2 | (c1, c2, _) <- x, c1 == c] ++ [c1 | (c1, c2, _) <- x, c2 == c]
+
+reachableFrom :: RoadMap -> City -> Bool
+reachableFrom x city = length (dfs x city) == length (cities x)
+
 isStronglyConnected :: RoadMap -> Bool
-isStronglyConnected = undefined
+isStronglyConnected x = all (reachableFrom x) (cities x)
+
+printIsStronglyConnected :: RoadMap -> IO ()
+printIsStronglyConnected x = 
+    if isStronglyConnected x
+    then putStrLn ("The graph is strongly connected.")
+    else putStrLn ("The graph is not strongly connected.")
 
 -- computes all shortest paths [RL99, BG20] connecting the two cities given as input. Note that there may be more than one path with the same total distance.
 -- If there are no paths between the input cities, then return an empty list. Note that the (only) shortest path between a city c and itself is [c].
