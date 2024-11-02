@@ -3,6 +3,7 @@ import Data.Array qualified
 import Data.Bits qualified
 import Data.List (intercalate)
 import Data.List qualified
+import Data.List (permutations)
 
 -- PFL 2024/2025 Practical assignment 1
 
@@ -68,6 +69,12 @@ pathDistance roadmap (c1 : c2 : cs) = case distance roadmap c1 c2 of
   Just d -> case pathDistance roadmap (c2 : cs) of
     Nothing -> Nothing
     Just ds -> Just (d + ds)
+  
+printPathDistance :: RoadMap -> Path -> IO ()
+printPathDistance x path =
+  case pathDistance x path of
+    Nothing -> putStrLn "The path is not valid."
+    Just d -> putStrLn ("The distance of the path is " ++ show d)
 
 -- returns the names of the cities with the highest number of roads connecting to them (i.e. the vertices with the highest degree)
 
@@ -76,6 +83,13 @@ rome [] = []
 rome roadmap = [city | city <- cities roadmap, length (adjacent roadmap city) == maxDegree]
   where
     maxDegree = maximum [length (adjacent roadmap city) | city <- cities roadmap]
+  
+printRome :: RoadMap -> IO ()
+printRome x = do
+  let romeCities = rome x
+  if null romeCities
+    then putStrLn "There are no cities with the highest degree."
+    else putStrLn ("The cities with the highest degree are: " ++ intercalate ", " romeCities)
 
 -- returns a boolean indicating whether all the cities in the graph are connected in the roadmap (i.e., if every city is reachable from every other city)
 dfs :: RoadMap -> City -> [City]
@@ -115,8 +129,37 @@ shortestPath = undefined
 -- city (which is also the ending city) is left to be chosen by each group.
 -- Note that the roadmap might not be a complete graph (i.e. a graph where all vertices are connected to all other vertices). If the graph does not have a TSP path, then return an empty list.
 
+
 travelSales :: RoadMap -> Path
-travelSales = undefined
+travelSales roadmap =
+  let
+    allCities = cities roadmap
+  in
+    if null allCities then [] else 
+        let
+          start = head allCities
+          rest = tail allCities
+          
+          possiblePaths = map (\p -> start : p ++ [start]) (permutations rest)
+          
+          validPaths = [(p, d) | p <- possiblePaths, Just d <- [pathDistance roadmap p]]
+          
+          findMinPath [p] = p
+          findMinPath (p1@(path1, dist1) : p2@(path2, dist2) : ps)
+            | dist1 <= dist2 = findMinPath (p1 : ps)
+            | otherwise      = findMinPath (p2 : ps) 
+        in
+          if null validPaths then [] else fst (findMinPath validPaths)
+
+printTravelSales :: RoadMap -> IO ()
+printTravelSales x = do
+  let path = travelSales x
+  if null path
+    then putStrLn "No TSP path found."
+    else putStrLn ("The TSP path for the graph is -> " ++ show path)
+
+
+
 
 -- Some graphs to test your work
 gTest1 :: RoadMap
