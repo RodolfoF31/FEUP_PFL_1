@@ -101,54 +101,12 @@ printIsStronglyConnected x =
     else putStrLn ("The graph is not strongly connected.")
 
 
-
---USES DFS (NOT OPTIMAL)
--- Returns the shortest paths based on distance between two cities in a roadmap.
---shortestPath :: RoadMap -> City -> City -> [Path]
---shortestPath roadmap start end
---  | start == end = [[start]]  -- The shortest path to itself
---  | null uniquePaths = []  -- No paths found
---  | otherwise = shortestPaths
---  where
---    -- List of all paths found with their total distances
---    allPaths = findPaths [[start]]  -- Start with the initial path
---
---    -- Find all paths using depth-first search
---    findPaths :: [Path] -> [(Path, Distance)]  -- Returns a list of (Path, Distance) tuples
---    findPaths [] = []  -- No more paths to process
---    findPaths (p:ps)
---      | last p == end = (p, distanceToEnd p) : findPaths ps  -- If we reach the end, add the path with its distance
---      | otherwise = findPaths (extendPath p ++ ps)  -- Extend the current path
---      where
---        -- Extend the current path by exploring adjacent cities
---        extendPath :: Path -> [Path]
---        extendPath path =
---          let currentCity = last path
---          in [path ++ [nextCity] | (nextCity, dist) <- adjacent roadmap currentCity, nextCity `notElem` path]
---
---    -- Calculate the distance from the start city to the end city for a given path
---    distanceToEnd :: Path -> Distance
---    distanceToEnd path = case pathDistance roadmap path of
---      Just d  -> d
---      Nothing -> maxBound  -- Use maxBound for unreachable paths
---
---    -- Get all unique paths to the end city with their distances
---    uniquePaths = filter (\(p, _) -> last p == end) (findPaths [[start]])
---
---    -- Find the minimum distance from the collected paths
---    minDistance = minimum [d | (_, d) <- uniquePaths]
---
---    -- Filter paths to only include those with the minimum distance
---    shortestPaths = [p | (p, d) <- uniquePaths, d == minDistance]
-
 --dijkstra
-type DistanceTable = [(City, Distance)] -- table of distances from the starting city to each city
-type PredecessorTable = [(City, Maybe City)] -- table of predecessors for each city
+type DistanceTable = [(City, Distance)] 
+type PredecessorTable = [(City, [Maybe City])] 
 
 initDataStructure :: RoadMap -> City -> (DistanceTable, PredecessorTable)
-initDataStructure roadMap start = ([(c, if c == start then 0 else maxBound) | c <- cities roadMap], [(c, Nothing) | c <- cities roadMap])
-
-
+initDataStructure roadMap start = ([(c, if c == start then 0 else maxBound) | c <- cities roadMap], [(c, [Nothing]) | c <- cities roadMap])
 
 findCityWithSmallestDistance :: [City] -> DistanceTable -> (City, Distance)
 findCityWithSmallestDistance cities distTable = minimumBy (\(_, d1) (_, d2) -> compare d1 d2) [(c, d) | (c, d) <- distTable, c `elem` cities]
@@ -164,18 +122,20 @@ updateTables distTable predsTable neighbors currentCity roadmap = foldl update (
               neighborDist = lookupDistance neighbor dTable
               alt = sourceDist + currentDistance
           in if alt < neighborDist && sourceDist /= maxBound
-             then (replace dTable neighbor alt, replace pTable neighbor (Just currentCity))
-             else (dTable, pTable)
+             then (replace dTable neighbor alt, replace pTable neighbor [Just currentCity])
+             else if alt == neighborDist && sourceDist /= maxBound
+                  then (dTable, addPredecessor pTable neighbor (Just currentCity))
+                  else (dTable, pTable)
     lookupDistance city table = maybe maxBound id (lookup city table)
     replace table city newValue = map (\(c, v) -> if c == city then (c, newValue) else (c, v)) table
+    addPredecessor table city pred = map (\(c, preds) -> if c == city then (c, pred : preds) else (c, preds)) table
 
 
 
--- Dijkstra's algorithm to find the shortest path to a specific destination
 dijkstra :: RoadMap -> City -> City -> (DistanceTable, PredecessorTable)
 dijkstra roadmap start destination =
     let (initialDistTable, initialPredTable) = initDataStructure roadmap start
-        dijkstra' [] distTable predsTable = (distTable, predsTable)  -- No more cities to visit
+        dijkstra' [] distTable predsTable = (distTable, predsTable)  
         dijkstra' unvisitedCities distTable predsTable =
             let (currentCity, currentDistance) = findCityWithSmallestDistance unvisitedCities distTable
             in if currentCity == destination
@@ -188,17 +148,8 @@ dijkstra roadmap start destination =
 
 
 
--- Function to print Distance and Predecessor Tables
-printTables :: DistanceTable -> PredecessorTable -> IO ()
-printTables distTable predsTable = do
-    putStrLn "Distance Table:"
-    mapM_ (\(city, dist) -> putStrLn $ city ++ ": " ++ show dist) distTable
-    putStrLn "\nPredecessor Table:"
-    mapM_ (\(city, preds) -> putStrLn $ city ++ ": " ++ maybe "Nothing" id preds) predsTable
-    putStrLn ""
 
 
--- Shortest Path function that finds all paths of the minimum distance
 shortestPath :: RoadMap -> City -> City -> [Path]
 shortestPath roadmap start destination =
     let (distTable, predsTable) = dijkstra roadmap start destination
@@ -211,15 +162,16 @@ shortestPath roadmap start destination =
   where
     lookupDistance city table = maybe maxBound id (lookup city table)
 
+
 reconstructAllPaths :: PredecessorTable -> City -> City -> [Path]
-reconstructAllPaths predsTable start destination = reverse (go (Just destination) [])
+reconstructAllPaths predsTable start destination = go [Just destination]
   where
-    go (Just city) path
-      | city == start = [start : path]
-      | otherwise = case lookup city predsTable of
-                      Just prev -> go prev (city : path)
-                      Nothing -> []
-    go Nothing _ = []
+    go path@(Just current : _)
+      | current == start = [map (\(Just c) -> c) path]
+      | otherwise = case lookup current predsTable of
+          Just preds -> concatMap (\pred -> go (pred : path)) preds
+          Nothing -> []
+    go _ = []  
 
 
 
@@ -242,4 +194,6 @@ gTest2 = [("0", "1", 10), ("0", "2", 15), ("0", "3", 20), ("1", "2", 35), ("1", 
 gTest3 :: RoadMap -- unconnected graph
 gTest3 = [("0", "1", 4), ("2", "3", 2)]
 
+gTestCustom :: RoadMap
+gTestCustom = [("0", "1", 1), ("0","2",1), ("0","3",1) ,("1", "4", 1), ("2","4",1), ("3","4",1) ]
 
