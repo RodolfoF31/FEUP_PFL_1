@@ -9,57 +9,61 @@ import Data.List (permutations)
 -- Uncomment the some/all of the first three lines to import the modules, do not change the code of these lines.
 
 type City = String
-
 type Path = [City]
-
 type Distance = Int
-
 type RoadMap = [(City, City, Distance)]
 
---  returns all the cities in the graph.
-
+-- Remove duplicates from a list.
+-- Takes a list of elements and returns a list with duplicate elements removed.
 removeDuplicates :: (Eq a) => [a] -> [a]
 removeDuplicates [] = []
 removeDuplicates (x : xs) = x : removeDuplicates (filter (/= x) xs)
 
+-- List all unique cities in a roadmap.
+-- Takes a roadmap and returns a list of cities without duplicates.
 cities :: RoadMap -> [City]
 cities x = removeDuplicates (concat [[c1, c2] | (c1, c2, _) <- x])
 
+-- Print all cities in the roadmap.
+-- Takes a roadmap and prints each city in a comma-separated list.
 printCities :: RoadMap -> IO ()
 printCities x = putStrLn ("The cities in the graph are: " ++ intercalate ", " (cities x))
 
--- returns a boolean indicating whether two cities are linked directly.
-
+-- Check if two cities are adjacent in the roadmap.
+-- Takes a roadmap and two cities, returns True if they are directly connected.
 areAdjacent :: RoadMap -> City -> City -> Bool
 areAdjacent x city1 city2 = any (\(c1, c2, _) -> (c1 == city1 && c2 == city2) || (c1 == city2 && c2 == city1)) x
 
+-- Print adjacency status between two cities.
+-- Takes a roadmap and two cities, prints if they are adjacent or not.
 printAreAdjacent :: RoadMap -> City -> City -> IO ()
 printAreAdjacent x city1 city2 =
   if areAdjacent x city1 city2
     then putStrLn ("City " ++ city1 ++ " and " ++ "City " ++ city2 ++ " are adjacent.")
     else putStrLn ("City " ++ city1 ++ " and " ++ "City " ++ city2 ++ " are not adjacent.")
 
--- returns a Just value with the distance between two cities connected directly, given two city names, and Nothing otherwise.
-
+-- Find the distance between two cities if they are adjacent.
+-- Takes a roadmap and two cities, returns the distance as Maybe Distance or Nothing if not adjacent.
 distance :: RoadMap -> City -> City -> Maybe Distance
 distance x city1 city2 =
   if areAdjacent x city1 city2
     then Just (head [d | (c1, c2, d) <- x, (c1 == city1 && c2 == city2) || (c1 == city2 && c2 == city1)])
     else Nothing
 
--- returns the cities adjacent to a particular city (i.e. cities with a direct edge between them) and the respective distances to them.
-
+-- List all cities adjacent to a given city with their distances.
+-- Takes a roadmap and a city, returns a list of adjacent cities with distances.
 adjacent :: RoadMap -> City -> [(City, Distance)]
 adjacent x city = [(c, d) | c <- cities x, areAdjacent x city c, Just d <- [distance x city c]]
 
+-- Print all adjacent cities of a given city with distances.
+-- Takes a roadmap and a city, prints each adjacent city with the distance to it.
 printAdjacentCities :: RoadMap -> City -> IO ()
 printAdjacentCities x city = do
   putStrLn ("The Cities adjacent to " ++ city ++ " are:\n")
   putStrLn (unlines ["City " ++ c ++ " with distance " ++ show d | (c, d) <- adjacent x city])
 
--- returns the sum of all individual distances in a path between two cities in a Just value, if all the consecutive pairs of cities are directly connected by roads.
--- Otherwise, it returns a Nothing.
-
+-- Calculate the total distance of a path.
+-- Takes a roadmap and a path, returns the distance of the path as Maybe Distance or Nothing if path is invalid.
 pathDistance :: RoadMap -> Path -> Maybe Distance
 pathDistance _ [] = Just 0
 pathDistance _ [_] = Just 0
@@ -68,21 +72,25 @@ pathDistance roadmap (c1 : c2 : cs) = case distance roadmap c1 c2 of
   Just d -> case pathDistance roadmap (c2 : cs) of
     Nothing -> Nothing
     Just ds -> Just (d + ds)
-  
+
+-- Print the total distance of a path.
+-- Takes a roadmap and a path, prints the distance of the path or indicates if the path is invalid.
 printPathDistance :: RoadMap -> Path -> IO ()
 printPathDistance x path =
   case pathDistance x path of
     Nothing -> putStrLn "The path is not valid."
     Just d -> putStrLn ("The distance of the path is " ++ show d)
 
--- returns the names of the cities with the highest number of roads connecting to them (i.e. the vertices with the highest degree)
-
+-- List cities with the highest degree (most adjacent connections).
+-- Takes a roadmap and returns a list of cities with the maximum number of adjacent cities.
 rome :: RoadMap -> [City]
 rome [] = []
 rome roadmap = [city | city <- cities roadmap, length (adjacent roadmap city) == maxDegree]
   where
     maxDegree = maximum [length (adjacent roadmap city) | city <- cities roadmap]
-  
+
+-- Print cities with the highest degree.
+-- Takes a roadmap and prints each city with the maximum number of adjacent connections.
 printRome :: RoadMap -> IO ()
 printRome x = do
   let romeCities = rome x
@@ -90,7 +98,8 @@ printRome x = do
     then putStrLn "There are no cities with the highest degree."
     else putStrLn ("The cities with the highest degree are: " ++ intercalate ", " romeCities)
 
--- returns a boolean indicating whether all the cities in the graph are connected in the roadmap (i.e., if every city is reachable from every other city)
+-- Depth-first search (DFS) to list reachable cities from a starting city.
+-- Takes a roadmap and a starting city, returns a list of all cities reachable from the start.
 dfs :: RoadMap -> City -> [City]
 dfs x start = dfs' [start] []
   where
@@ -101,34 +110,30 @@ dfs x start = dfs' [start] []
       where
         adjacentCities = [c2 | (c1, c2, _) <- x, c1 == c] ++ [c1 | (c1, c2, _) <- x, c2 == c]
 
+-- Check if a city can reach all other cities in the graph.
+-- Takes a roadmap and a city, returns True if all cities are reachable from the given city.
 reachableFrom :: RoadMap -> City -> Bool
 reachableFrom x city = length (dfs x city) == length (cities x)
 
+-- Check if the entire graph is strongly connected.
+-- Takes a roadmap, returns True if all cities are mutually reachable.
 isStronglyConnected :: RoadMap -> Bool
 isStronglyConnected x = all (reachableFrom x) (cities x)
 
+-- Print if the graph is strongly connected.
+-- Takes a roadmap and prints if all cities are mutually reachable.
 printIsStronglyConnected :: RoadMap -> IO ()
 printIsStronglyConnected x =
   if isStronglyConnected x
     then putStrLn ("The graph is strongly connected.")
     else putStrLn ("The graph is not strongly connected.")
 
--- computes all shortest paths [RL99, BG20] connecting the two cities given as input. Note that there may be more than one path with the same total distance.
--- If there are no paths between the input cities, then return an empty list. Note that the (only) shortest path between a city c and itself is [c].
-
-
--- Main shortestPath function to find all shortest paths with minimum distance
+-- Find the shortest path between two cities (currently undefined).
 shortestPath :: RoadMap -> City -> City -> [Path]
 shortestPath = undefined
 
-
-  
--- given a roadmap, returns a solution of the Traveling Salesman Problem (TSP). In this problem, a traveling salesperson has to visit each city exactly once and come back to the starting town. The problem is to find the shortest route, that is, the route
--- whose total distance is minimum. This problem has a known solution using dynamic programming [RL99]. Any optimal TSP path will be accepted and the function only needs to return one of them, so the starting
--- city (which is also the ending city) is left to be chosen by each group.
--- Note that the roadmap might not be a complete graph (i.e. a graph where all vertices are connected to all other vertices). If the graph does not have a TSP path, then return an empty list.
-
-
+-- Solve the Traveling Salesman Problem (TSP) by finding the shortest round-trip path.
+-- Takes a roadmap, returns the shortest path that visits all cities and returns to the starting city.
 travelSales :: RoadMap -> Path
 travelSales roadmap =
   let
@@ -150,6 +155,8 @@ travelSales roadmap =
         in
           if null validPaths then [] else fst (findMinPath validPaths)
 
+-- Print the shortest TSP path.
+-- Takes a roadmap and prints the shortest round-trip path that visits all cities.
 printTravelSales :: RoadMap -> IO ()
 printTravelSales x = do
   let path = travelSales x
@@ -157,10 +164,7 @@ printTravelSales x = do
     then putStrLn "No TSP path found."
     else putStrLn ("The TSP path for the graph is -> " ++ show path)
 
-
-
-
--- Some graphs to test your work
+-- Example roadmaps for testing
 gTest1 :: RoadMap
 gTest1 = [("7", "6", 1), ("8", "2", 2), ("6", "5", 2), ("0", "1", 4), ("2", "5", 4), ("8", "6", 6), ("2", "3", 7), ("7", "8", 7), ("0", "7", 8), ("1", "2", 8), ("3", "4", 9), ("5", "4", 10), ("1", "7", 11), ("3", "5", 14)]
 
@@ -169,5 +173,4 @@ gTest2 = [("0", "1", 10), ("0", "2", 15), ("0", "3", 20), ("1", "2", 35), ("1", 
 
 gTest3 :: RoadMap -- unconnected graph
 gTest3 = [("0", "1", 4), ("2", "3", 2)]
-
 
