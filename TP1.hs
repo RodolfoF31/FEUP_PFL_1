@@ -155,23 +155,19 @@ findCityWithSmallestDistance cities distTable = minimumBy (\(_, d1) (_, d2) -> c
 
 
 updateTables :: DistanceTable -> PredecessorTable -> [(City, Distance)] -> City -> RoadMap -> (DistanceTable, PredecessorTable)
-updateTables distTable predsTable neighbors currentCity roadmap=
-  foldl update (distTable, predsTable) neighbors
+updateTables distTable predsTable neighbors currentCity roadmap = foldl update (distTable, predsTable) neighbors
   where
-
-  update (dTable, pTable) (neighbor, weight) =
-    let oldDistance = lookupDistance neighbor dTable
-        newDistance = case distance roadmap currentCity neighbor of
-                        Nothing -> oldDistance
-                        Just d -> if oldDistance == maxBound then d else oldDistance + d
-    in if newDistance < oldDistance
-      then (replace dTable neighbor newDistance, replace pTable neighbor (Just currentCity))
-      else (dTable, pTable)
-
-  lookupDistance city table = maybe maxBound id (lookup city table)
-
-  replace table city newValue = map (\(c, v) -> if c == city then (c, newValue) else (c, v)) table
-  -- Helper function to get the distance between two cities
+    update (dTable, pTable) (neighbor, weight) =
+      case distance roadmap currentCity neighbor of
+        Just currentDistance ->
+          let sourceDist = lookupDistance currentCity dTable
+              neighborDist = lookupDistance neighbor dTable
+              alt = sourceDist + currentDistance
+          in if alt < neighborDist && sourceDist /= maxBound
+             then (replace dTable neighbor alt, replace pTable neighbor (Just currentCity))
+             else (dTable, pTable)
+    lookupDistance city table = maybe maxBound id (lookup city table)
+    replace table city newValue = map (\(c, v) -> if c == city then (c, newValue) else (c, v)) table
 
 
 
@@ -201,20 +197,29 @@ printTables distTable predsTable = do
     mapM_ (\(city, preds) -> putStrLn $ city ++ ": " ++ maybe "Nothing" id preds) predsTable
     putStrLn ""
 
-testDijkstra :: RoadMap -> City -> City -> IO ()
-testDijkstra roadmap start destination = do
-    let (distTable, predsTable) = dijkstra roadmap start destination
-    printTables distTable predsTable
-    putStrLn $ "Shortest path from " ++ start ++ " to " ++ destination ++ ": " ++ show (reconstructPath predsTable start destination)
 
-reconstructPath :: PredecessorTable -> City -> City -> [City]
-reconstructPath predsTable start destination = reverse $ go destination []
+-- Shortest Path function that finds all paths of the minimum distance
+shortestPath :: RoadMap -> City -> City -> [Path]
+shortestPath roadmap start destination =
+    let (distTable, predsTable) = dijkstra roadmap start destination
+        shortestDistance = lookupDistance destination distTable
+    in if shortestDistance == maxBound
+       then []  -- No path found
+       else if start == destination
+            then [[start]]  -- Path to itself
+            else reconstructAllPaths predsTable start destination
   where
-    go city path
-      | city == start = start : path
+    lookupDistance city table = maybe maxBound id (lookup city table)
+
+reconstructAllPaths :: PredecessorTable -> City -> City -> [Path]
+reconstructAllPaths predsTable start destination = reverse (go (Just destination) [])
+  where
+    go (Just city) path
+      | city == start = [start : path]
       | otherwise = case lookup city predsTable of
-                      Just (Just prev) -> go prev (city : path)
-                      _ -> []  -- If no predecessor, return empty path
+                      Just prev -> go prev (city : path)
+                      Nothing -> []
+    go Nothing _ = []
 
 
 
