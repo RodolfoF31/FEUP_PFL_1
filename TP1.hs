@@ -1,4 +1,3 @@
-
 import Data.Array qualified
 import Data.Bits qualified
 import Data.List (intercalate)
@@ -146,7 +145,7 @@ travelSales roadmap =
           
           findMinPath [p] = p
           findMinPath (p1@(path1, dist1) : p2@(path2, dist2) : ps)
-            | dist1 <= dist2 = findMinPath (p1 : ps)
+            | dist1 <= dist2 = findMinPath (p1 : ps)  
             | otherwise      = findMinPath (p2 : ps) 
         in
           if null validPaths then [] else fst (findMinPath validPaths)
