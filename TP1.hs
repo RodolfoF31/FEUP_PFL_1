@@ -1,7 +1,7 @@
 
 import Data.Array qualified
 import Data.Bits qualified
-import Data.List (intercalate)
+import Data.List (intercalate, minimumBy)
 import Data.List qualified
 
 -- PFL 2024/2025 Practical assignment 1
@@ -100,16 +100,125 @@ printIsStronglyConnected x =
     then putStrLn ("The graph is strongly connected.")
     else putStrLn ("The graph is not strongly connected.")
 
--- computes all shortest paths [RL99, BG20] connecting the two cities given as input. Note that there may be more than one path with the same total distance.
--- If there are no paths between the input cities, then return an empty list. Note that the (only) shortest path between a city c and itself is [c].
 
 
--- Main shortestPath function to find all shortest paths with minimum distance
-shortestPath :: RoadMap -> City -> City -> [Path]
-shortestPath = undefined
+--USES DFS (NOT OPTIMAL)
+-- Returns the shortest paths based on distance between two cities in a roadmap.
+--shortestPath :: RoadMap -> City -> City -> [Path]
+--shortestPath roadmap start end
+--  | start == end = [[start]]  -- The shortest path to itself
+--  | null uniquePaths = []  -- No paths found
+--  | otherwise = shortestPaths
+--  where
+--    -- List of all paths found with their total distances
+--    allPaths = findPaths [[start]]  -- Start with the initial path
+--
+--    -- Find all paths using depth-first search
+--    findPaths :: [Path] -> [(Path, Distance)]  -- Returns a list of (Path, Distance) tuples
+--    findPaths [] = []  -- No more paths to process
+--    findPaths (p:ps)
+--      | last p == end = (p, distanceToEnd p) : findPaths ps  -- If we reach the end, add the path with its distance
+--      | otherwise = findPaths (extendPath p ++ ps)  -- Extend the current path
+--      where
+--        -- Extend the current path by exploring adjacent cities
+--        extendPath :: Path -> [Path]
+--        extendPath path =
+--          let currentCity = last path
+--          in [path ++ [nextCity] | (nextCity, dist) <- adjacent roadmap currentCity, nextCity `notElem` path]
+--
+--    -- Calculate the distance from the start city to the end city for a given path
+--    distanceToEnd :: Path -> Distance
+--    distanceToEnd path = case pathDistance roadmap path of
+--      Just d  -> d
+--      Nothing -> maxBound  -- Use maxBound for unreachable paths
+--
+--    -- Get all unique paths to the end city with their distances
+--    uniquePaths = filter (\(p, _) -> last p == end) (findPaths [[start]])
+--
+--    -- Find the minimum distance from the collected paths
+--    minDistance = minimum [d | (_, d) <- uniquePaths]
+--
+--    -- Filter paths to only include those with the minimum distance
+--    shortestPaths = [p | (p, d) <- uniquePaths, d == minDistance]
+
+--dijkstra
+type DistanceTable = [(City, Distance)] -- table of distances from the starting city to each city
+type PredecessorTable = [(City, Maybe City)] -- table of predecessors for each city
+
+initDataStructure :: RoadMap -> City -> (DistanceTable, PredecessorTable)
+initDataStructure roadMap start = ([(c, if c == start then 0 else maxBound) | c <- cities roadMap], [(c, Nothing) | c <- cities roadMap])
 
 
-  
+
+findCityWithSmallestDistance :: [City] -> DistanceTable -> (City, Distance)
+findCityWithSmallestDistance cities distTable = minimumBy (\(_, d1) (_, d2) -> compare d1 d2) [(c, d) | (c, d) <- distTable, c `elem` cities]
+
+
+updateTables :: DistanceTable -> PredecessorTable -> [(City, Distance)] -> City -> RoadMap -> (DistanceTable, PredecessorTable)
+updateTables distTable predsTable neighbors currentCity roadmap=
+  foldl update (distTable, predsTable) neighbors
+  where
+
+  update (dTable, pTable) (neighbor, weight) =
+    let oldDistance = lookupDistance neighbor dTable
+        newDistance = case distance roadmap currentCity neighbor of
+                        Nothing -> oldDistance
+                        Just d -> if oldDistance == maxBound then d else oldDistance + d
+    in if newDistance < oldDistance
+      then (replace dTable neighbor newDistance, replace pTable neighbor (Just currentCity))
+      else (dTable, pTable)
+
+  lookupDistance city table = maybe maxBound id (lookup city table)
+
+  replace table city newValue = map (\(c, v) -> if c == city then (c, newValue) else (c, v)) table
+  -- Helper function to get the distance between two cities
+
+
+
+-- Dijkstra's algorithm to find the shortest path to a specific destination
+dijkstra :: RoadMap -> City -> City -> (DistanceTable, PredecessorTable)
+dijkstra roadmap start destination =
+    let (initialDistTable, initialPredTable) = initDataStructure roadmap start
+        dijkstra' [] distTable predsTable = (distTable, predsTable)  -- No more cities to visit
+        dijkstra' unvisitedCities distTable predsTable =
+            let (currentCity, currentDistance) = findCityWithSmallestDistance unvisitedCities distTable
+            in if currentCity == destination
+                then (distTable, predsTable)  -- Stop if we reached the destination
+                else let neighbors = adjacent roadmap currentCity
+                         (updatedDistTable, updatedPredsTable) = updateTables distTable predsTable neighbors currentCity roadmap
+                         remainingCities = filter (/= currentCity) unvisitedCities
+                     in dijkstra' remainingCities updatedDistTable updatedPredsTable
+    in dijkstra' (cities roadmap) initialDistTable initialPredTable
+
+
+
+-- Function to print Distance and Predecessor Tables
+printTables :: DistanceTable -> PredecessorTable -> IO ()
+printTables distTable predsTable = do
+    putStrLn "Distance Table:"
+    mapM_ (\(city, dist) -> putStrLn $ city ++ ": " ++ show dist) distTable
+    putStrLn "\nPredecessor Table:"
+    mapM_ (\(city, preds) -> putStrLn $ city ++ ": " ++ maybe "Nothing" id preds) predsTable
+    putStrLn ""
+
+testDijkstra :: RoadMap -> City -> City -> IO ()
+testDijkstra roadmap start destination = do
+    let (distTable, predsTable) = dijkstra roadmap start destination
+    printTables distTable predsTable
+    putStrLn $ "Shortest path from " ++ start ++ " to " ++ destination ++ ": " ++ show (reconstructPath predsTable start destination)
+
+reconstructPath :: PredecessorTable -> City -> City -> [City]
+reconstructPath predsTable start destination = reverse $ go destination []
+  where
+    go city path
+      | city == start = start : path
+      | otherwise = case lookup city predsTable of
+                      Just (Just prev) -> go prev (city : path)
+                      _ -> []  -- If no predecessor, return empty path
+
+
+
+
 -- given a roadmap, returns a solution of the Traveling Salesman Problem (TSP). In this problem, a traveling salesperson has to visit each city exactly once and come back to the starting town. The problem is to find the shortest route, that is, the route
 -- whose total distance is minimum. This problem has a known solution using dynamic programming [RL99]. Any optimal TSP path will be accepted and the function only needs to return one of them, so the starting
 -- city (which is also the ending city) is left to be chosen by each group.
